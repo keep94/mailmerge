@@ -40,4 +40,5 @@ As the job runs, it prints to stdout the index, email address, and name for the 
 
 ## Optional flags
 - The -dryrun flag sends no emails, but prints to stdout the emails that would be sent.
+- The -emails flag, if present, mail merges to the comma separated emails rather than the entire batch.
 - In case the program terminated early from an error, the -index flag can start the mailmerge job where it left off rather than at the beginning. e.g -index 3 starts the job at the email with index 3.

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -26,6 +27,7 @@ var (
 	fSubject  string
 	fDryRun   bool
 	fIndex    int
+	fEmails   string
 )
 
 func main() {
@@ -49,6 +51,14 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+	if fEmails != "" {
+		var err error
+		csvRows, err = doEmailFilter(csvRows, fEmails)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	}
 	sender := createEmailSender(config, fDryRun)
 	defer sender.Shutdown()
@@ -130,6 +140,67 @@ func (c csvRow) Email() string {
 	return c[kEmail]
 }
 
+type emailSet map[string]struct{}
+
+func newEmailSet(commaSeparatedEmails string) emailSet {
+	emailList := strings.Split(commaSeparatedEmails, ",")
+	result := make(emailSet)
+	for _, email := range emailList {
+		result.Add(strings.TrimSpace(email))
+	}
+	return result
+}
+
+func (e emailSet) Contains(email string) bool {
+	_, ok := e[email]
+	return ok
+}
+
+func (e emailSet) Add(email string) {
+	e[email] = struct{}{}
+}
+
+func (e emailSet) Difference(other emailSet) emailSet {
+	result := make(emailSet)
+	for email := range e {
+		if !other.Contains(email) {
+			result.Add(email)
+		}
+	}
+	return result
+}
+
+func (e emailSet) String() string {
+	emailSlice := make([]string, 0, len(e))
+	for email := range e {
+		emailSlice = append(emailSlice, email)
+	}
+	sort.Strings(emailSlice)
+	return strings.Join(emailSlice, ", ")
+}
+
+func doEmailFilter(csvRows []csvRow, emails string) ([]csvRow, error) {
+	selectedEmails := newEmailSet(emails)
+	result, foundEmails := filterByEmails(csvRows, selectedEmails)
+	unrecognizedEmails := selectedEmails.Difference(foundEmails)
+	if len(unrecognizedEmails) > 0 {
+		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
+	}
+	return result, nil
+}
+
+func filterByEmails(csvRows []csvRow, emails emailSet) (
+	result []csvRow, foundEmails emailSet) {
+	foundEmails = make(emailSet)
+	for _, row := range csvRows {
+		if emails.Contains(row.Email()) {
+			result = append(result, row)
+			foundEmails.Add(row.Email())
+		}
+	}
+	return
+}
+
 func readCsv(csvPath string) ([]csvRow, error) {
 	f, err := os.Open(csvPath)
 	if err != nil {
@@ -198,4 +269,5 @@ func init() {
 	flag.StringVar(&fSubject, "subject", "", "Subject")
 	flag.BoolVar(&fDryRun, "dryrun", false, "Dry Run?")
 	flag.IntVar(&fIndex, "index", 0, "Starting index")
+	flag.StringVar(&fEmails, "emails", "", "Comma separated emails")
 }

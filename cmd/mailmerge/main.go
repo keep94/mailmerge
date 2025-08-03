@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/keep94/toolbox/mailer"
 	"gopkg.in/yaml.v3"
@@ -84,7 +85,11 @@ func createEmailSender(config *config, dryRun bool) emailSender {
 	if dryRun {
 		return dryRunMailer{}
 	}
-	return mailer.New(config.EmailId, config.Password)
+	return mailer.NewWithOptions(
+		config.EmailId,
+		config.Password,
+		mailer.SendWaitTime(100*time.Millisecond),
+	)
 }
 
 type dryRunMailer struct {

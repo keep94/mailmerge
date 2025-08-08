@@ -243,9 +243,12 @@ func readCsvFile(r io.Reader) ([]csvRow, error) {
 	var result []csvRow
 	row, err := csvReader.Read()
 	for err != io.EOF {
+		if err != nil {
+			return nil, err
+		}
+		lineNo, _ := csvReader.FieldPos(0)
 		crow := createCsvRow(headers, row)
 		if crow.Name() == "" || crow.Email() == "" {
-			lineNo, _ := csvReader.FieldPos(0)
 			err = fmt.Errorf(
 				"Line %d: name and email columns must be present", lineNo)
 			return nil, err

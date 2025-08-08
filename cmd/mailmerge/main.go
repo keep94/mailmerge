@@ -13,6 +13,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/keep94/toolbox/build"
 	"github.com/keep94/toolbox/mailer"
 	"gopkg.in/yaml.v3"
 )
@@ -30,10 +31,16 @@ var (
 	fIndex    int
 	fEmails   string
 	fNoEmails string
+	fVersion  bool
 )
 
 func main() {
 	flag.Parse()
+	if fVersion {
+		version, _ := build.MainVersion()
+		fmt.Println(build.BuildId(version))
+		return
+	}
 	if fTemplate == "" || fCsv == "" || fSubject == "" {
 		fmt.Println("-template, -csv, and -subject flags required.")
 		flag.Usage()
@@ -302,4 +309,5 @@ func init() {
 		"noemails",
 		"",
 		"Comma separated emails to exclude. Ignored if emails flag is present")
+	flag.BoolVar(&fVersion, "version", false, "Show version")
 }

@@ -29,6 +29,7 @@ var (
 	fDryRun   bool
 	fIndex    int
 	fEmails   string
+	fNoEmails string
 )
 
 func main() {
@@ -56,6 +57,13 @@ func main() {
 	if fEmails != "" {
 		var err error
 		csvRows, err = doEmailFilter(csvRows, fEmails)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	} else if fNoEmails != "" {
+		var err error
+		csvRows, err = doNoEmailFilter(csvRows, fNoEmails)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -186,7 +194,17 @@ func (e emailSet) String() string {
 
 func doEmailFilter(csvRows []csvRow, emails string) ([]csvRow, error) {
 	selectedEmails := newEmailSet(emails)
-	result, foundEmails := filterByEmails(csvRows, selectedEmails)
+	result, _, foundEmails := filterByEmails(csvRows, selectedEmails)
+	unrecognizedEmails := selectedEmails.Difference(foundEmails)
+	if len(unrecognizedEmails) > 0 {
+		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
+	}
+	return result, nil
+}
+
+func doNoEmailFilter(csvRows []csvRow, noEmails string) ([]csvRow, error) {
+	selectedEmails := newEmailSet(noEmails)
+	_, result, foundEmails := filterByEmails(csvRows, selectedEmails)
 	unrecognizedEmails := selectedEmails.Difference(foundEmails)
 	if len(unrecognizedEmails) > 0 {
 		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
@@ -195,12 +213,14 @@ func doEmailFilter(csvRows []csvRow, emails string) ([]csvRow, error) {
 }
 
 func filterByEmails(csvRows []csvRow, emails emailSet) (
-	result []csvRow, foundEmails emailSet) {
+	selected, notSelected []csvRow, foundEmails emailSet) {
 	foundEmails = make(emailSet)
 	for _, row := range csvRows {
 		if emails.Contains(row.Email()) {
-			result = append(result, row)
+			selected = append(selected, row)
 			foundEmails.Add(row.Email())
+		} else {
+			notSelected = append(notSelected, row)
 		}
 	}
 	return
@@ -274,5 +294,7 @@ func init() {
 	flag.StringVar(&fSubject, "subject", "", "Subject")
 	flag.BoolVar(&fDryRun, "dryrun", false, "Dry Run?")
 	flag.IntVar(&fIndex, "index", 0, "Starting index")
-	flag.StringVar(&fEmails, "emails", "", "Comma separated emails")
+	flag.StringVar(&fEmails, "emails", "", "Comma separated emails to include")
+	flag.StringVar(
+		&fNoEmails, "noemails", "", "Comma separated emails to exclude. Ignored if emails flag is present")
 }

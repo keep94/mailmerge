@@ -194,8 +194,7 @@ func (e emailSet) String() string {
 
 func doEmailFilter(csvRows []csvRow, emails string) ([]csvRow, error) {
 	selectedEmails := newEmailSet(emails)
-	result, _, foundEmails := filterByEmails(csvRows, selectedEmails)
-	unrecognizedEmails := selectedEmails.Difference(foundEmails)
+	result, _, unrecognizedEmails := filterByEmails(csvRows, selectedEmails)
 	if len(unrecognizedEmails) > 0 {
 		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
 	}
@@ -204,8 +203,7 @@ func doEmailFilter(csvRows []csvRow, emails string) ([]csvRow, error) {
 
 func doNoEmailFilter(csvRows []csvRow, noEmails string) ([]csvRow, error) {
 	selectedEmails := newEmailSet(noEmails)
-	_, result, foundEmails := filterByEmails(csvRows, selectedEmails)
-	unrecognizedEmails := selectedEmails.Difference(foundEmails)
+	_, result, unrecognizedEmails := filterByEmails(csvRows, selectedEmails)
 	if len(unrecognizedEmails) > 0 {
 		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
 	}
@@ -213,8 +211,8 @@ func doNoEmailFilter(csvRows []csvRow, noEmails string) ([]csvRow, error) {
 }
 
 func filterByEmails(csvRows []csvRow, emails emailSet) (
-	selected, notSelected []csvRow, foundEmails emailSet) {
-	foundEmails = make(emailSet)
+	selected, notSelected []csvRow, unrecognizedEmails emailSet) {
+	foundEmails := make(emailSet)
 	for _, row := range csvRows {
 		if emails.Contains(row.Email()) {
 			selected = append(selected, row)
@@ -223,6 +221,7 @@ func filterByEmails(csvRows []csvRow, emails emailSet) (
 			notSelected = append(notSelected, row)
 		}
 	}
+	unrecognizedEmails = emails.Difference(foundEmails)
 	return
 }
 
@@ -296,5 +295,8 @@ func init() {
 	flag.IntVar(&fIndex, "index", 0, "Starting index")
 	flag.StringVar(&fEmails, "emails", "", "Comma separated emails to include")
 	flag.StringVar(
-		&fNoEmails, "noemails", "", "Comma separated emails to exclude. Ignored if emails flag is present")
+		&fNoEmails,
+		"noemails",
+		"",
+		"Comma separated emails to exclude. Ignored if emails flag is present")
 }

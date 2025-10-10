@@ -2,25 +2,18 @@ package main
 
 import (
 	"bytes"
-	"encoding/csv"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"path"
-	"sort"
 	"strings"
 	"text/template"
 	"time"
 
+	"github.com/keep94/mailmerge/merge"
 	"github.com/keep94/toolbox/build"
 	"github.com/keep94/toolbox/mailer"
 	"gopkg.in/yaml.v3"
-)
-
-const (
-	kName  = "name"
-	kEmail = "email"
 )
 
 var (
@@ -51,11 +44,12 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	csvRows, err := readCsv(fCsv)
+	csvFile, err := merge.ReadCsv(fCsv)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	csvFile = csvFile.SelectGoing()
 	template, err := readTemplate(fTemplate)
 	if err != nil {
 		fmt.Println(err)
@@ -63,14 +57,14 @@ func main() {
 	}
 	if fEmails != "" {
 		var err error
-		csvRows, err = doEmailFilter(csvRows, fEmails)
+		csvFile, err = doEmailFilter(csvFile, fEmails)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	} else if fNoEmails != "" {
 		var err error
-		csvRows, err = doNoEmailFilter(csvRows, fNoEmails)
+		csvFile, err = doNoEmailFilter(csvFile, fNoEmails)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -78,7 +72,7 @@ func main() {
 	}
 	sender := createEmailSender(config, fDryRun)
 	defer sender.Shutdown()
-	for index, row := range csvRows {
+	for index, row := range csvFile.Rows {
 		if index < fIndex {
 			continue
 		}
@@ -127,7 +121,7 @@ func (d dryRunMailer) Shutdown() {
 
 func createEmail(
 	template *template.Template,
-	row csvRow,
+	row merge.CsvRow,
 	subject string) (*mailer.Email, error) {
 	var builder strings.Builder
 	if err := template.Execute(&builder, row); err != nil {
@@ -150,128 +144,28 @@ func readTemplate(templatePath string) (*template.Template, error) {
 	return template.ParseFiles(templatePath)
 }
 
-type csvRow map[string]string
-
-func (c csvRow) Name() string {
-	return c[kName]
+func doEmailFilter(csvFile *merge.CsvFile, emails string) (
+	*merge.CsvFile, error) {
+	return checkEmails(csvFile, merge.NewEmailSet(emails))
 }
 
-func (c csvRow) Email() string {
-	return c[kEmail]
-}
-
-type emailSet map[string]struct{}
-
-func newEmailSet(commaSeparatedEmails string) emailSet {
-	emailList := strings.Split(commaSeparatedEmails, ",")
-	result := make(emailSet)
-	for _, email := range emailList {
-		result.Add(strings.TrimSpace(email))
+func doNoEmailFilter(csvFile *merge.CsvFile, noEmails string) (
+	*merge.CsvFile, error) {
+	selectedEmails := merge.NewEmailSet(noEmails)
+	if _, err := checkEmails(csvFile, selectedEmails); err != nil {
+		return nil, err
 	}
-	return result
+	return csvFile.SelectNoEmails(selectedEmails), nil
 }
 
-func (e emailSet) Contains(email string) bool {
-	_, ok := e[email]
-	return ok
-}
-
-func (e emailSet) Add(email string) {
-	e[email] = struct{}{}
-}
-
-func (e emailSet) Difference(other emailSet) emailSet {
-	result := make(emailSet)
-	for email := range e {
-		if !other.Contains(email) {
-			result.Add(email)
-		}
-	}
-	return result
-}
-
-func (e emailSet) String() string {
-	emailSlice := make([]string, 0, len(e))
-	for email := range e {
-		emailSlice = append(emailSlice, email)
-	}
-	sort.Strings(emailSlice)
-	return strings.Join(emailSlice, ", ")
-}
-
-func doEmailFilter(csvRows []csvRow, emails string) ([]csvRow, error) {
-	selectedEmails := newEmailSet(emails)
-	result, _, unrecognizedEmails := filterByEmails(csvRows, selectedEmails)
+func checkEmails(csvFile *merge.CsvFile, emails merge.EmailSet) (
+	*merge.CsvFile, error) {
+	result := csvFile.SelectEmails(emails)
+	unrecognizedEmails := emails.Difference(result.AsEmailSet())
 	if len(unrecognizedEmails) > 0 {
 		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
 	}
 	return result, nil
-}
-
-func doNoEmailFilter(csvRows []csvRow, noEmails string) ([]csvRow, error) {
-	selectedEmails := newEmailSet(noEmails)
-	_, result, unrecognizedEmails := filterByEmails(csvRows, selectedEmails)
-	if len(unrecognizedEmails) > 0 {
-		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
-	}
-	return result, nil
-}
-
-func filterByEmails(csvRows []csvRow, emails emailSet) (
-	selected, notSelected []csvRow, unrecognizedEmails emailSet) {
-	foundEmails := make(emailSet)
-	for _, row := range csvRows {
-		if emails.Contains(row.Email()) {
-			selected = append(selected, row)
-			foundEmails.Add(row.Email())
-		} else {
-			notSelected = append(notSelected, row)
-		}
-	}
-	unrecognizedEmails = emails.Difference(foundEmails)
-	return
-}
-
-func readCsv(csvPath string) ([]csvRow, error) {
-	f, err := os.Open(csvPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return readCsvFile(f)
-}
-
-func readCsvFile(r io.Reader) ([]csvRow, error) {
-	csvReader := csv.NewReader(r)
-	headers, err := csvReader.Read()
-	if err != nil {
-		return nil, err
-	}
-	var result []csvRow
-	row, err := csvReader.Read()
-	for err != io.EOF {
-		if err != nil {
-			return nil, err
-		}
-		lineNo, _ := csvReader.FieldPos(0)
-		crow := createCsvRow(headers, row)
-		if crow.Name() == "" || crow.Email() == "" {
-			err = fmt.Errorf(
-				"Line %d: name and email columns must be present", lineNo)
-			return nil, err
-		}
-		result = append(result, crow)
-		row, err = csvReader.Read()
-	}
-	return result, nil
-}
-
-func createCsvRow(headers, row []string) csvRow {
-	result := make(csvRow, len(headers))
-	for index, colName := range headers {
-		result[colName] = row[index]
-	}
-	return result
 }
 
 type config struct {

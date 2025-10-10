@@ -17,7 +17,7 @@ password: app_password
 Run the program like this:
 
 ```
-mailmerge -template template.txt -csv data.csv -subject "Your Email Subject"
+mailmerge -template template.txt -csv master.csv -subject "Your Email Subject"
 ```
 
 template.txt may look like this:
@@ -28,7 +28,7 @@ Dear {{.name}}:
 Your pet, {{.petname}} is due for a checkup.
 ```
 
-data.csv may look like this:
+master.csv may look like this:
 
 ```
 name,email,petname
@@ -44,3 +44,29 @@ As the job runs, it prints to stdout the index, email address, and name for the 
 - The -noemails flag, if present, mail merges to all emails except the comma separated emails. If the -emails flag is present, -noemails is ignored.
 - In case the program terminated early from an error, the -index flag can start the mailmerge job where it left off rather than at the beginning. e.g -index 3 starts the job at the email with index 3.
 - The -version flag shows the current version / build.
+
+## Handling Event RSVPs
+
+The first step is to create a new CSV file from the master with a "going"
+column. To do this run
+
+```
+nogocsv -csv master.csv -nogo event.csv
+```
+
+event.csv may look like this.
+
+```
+name,email,petname,going
+Alice,alice@gmail.com,Patches,n
+Bob,bob@gmail.com,Rufus,n
+```
+
+When someone agrees to the event, change the "going" column for their row
+from a "n" to a "y". To send emails only to those going to the event, use
+
+```
+mailmerge -template event.txt -csv event.csv -subject "Your Email Subject"
+```
+
+mailmerge will automatically ignore the people not going when sending emails.

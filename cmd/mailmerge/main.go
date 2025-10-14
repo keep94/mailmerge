@@ -146,26 +146,28 @@ func readTemplate(templatePath string) (*template.Template, error) {
 
 func doEmailFilter(csvFile *merge.CsvFile, emails string) (
 	*merge.CsvFile, error) {
-	return checkEmails(csvFile, merge.NewEmailSet(emails))
+	selectedEmails := merge.NewEmailSet(emails)
+	if err := checkEmails(csvFile, selectedEmails); err != nil {
+		return nil, err
+	}
+	return csvFile.SelectEmails(selectedEmails), nil
 }
 
 func doNoEmailFilter(csvFile *merge.CsvFile, noEmails string) (
 	*merge.CsvFile, error) {
-	selectedEmails := merge.NewEmailSet(noEmails)
-	if _, err := checkEmails(csvFile, selectedEmails); err != nil {
+	selectedNoEmails := merge.NewEmailSet(noEmails)
+	if err := checkEmails(csvFile, selectedNoEmails); err != nil {
 		return nil, err
 	}
-	return csvFile.SelectNoEmails(selectedEmails), nil
+	return csvFile.SelectNoEmails(selectedNoEmails), nil
 }
 
-func checkEmails(csvFile *merge.CsvFile, emails merge.EmailSet) (
-	*merge.CsvFile, error) {
-	result := csvFile.SelectEmails(emails)
-	unrecognizedEmails := emails.Difference(result.AsEmailSet())
+func checkEmails(csvFile *merge.CsvFile, emails merge.EmailSet) error {
+	unrecognizedEmails := emails.Difference(csvFile.AsEmailSet())
 	if len(unrecognizedEmails) > 0 {
-		return nil, fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
+		return fmt.Errorf("Unrecognized emails: %s", unrecognizedEmails)
 	}
-	return result, nil
+	return nil
 }
 
 type config struct {

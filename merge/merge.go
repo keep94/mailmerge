@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"slices"
 	"sort"
@@ -46,16 +47,8 @@ func (c CsvRow) Going() bool {
 // WithNotGoing returns a CsvRow like this one but with the going column
 // set to "n"
 func (c CsvRow) WithNotGoing() CsvRow {
-	result := c.copy()
+	result := maps.Clone(c)
 	result[Going] = "n"
-	return result
-}
-
-func (c CsvRow) copy() CsvRow {
-	result := make(CsvRow, len(c))
-	for k, v := range c {
-		result[k] = v
-	}
 	return result
 }
 

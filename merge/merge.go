@@ -98,8 +98,7 @@ func (e EmailSet) String() string {
 	return strings.Join(emailSlice, ", ")
 }
 
-// CsvFile represents a mail merge CsvFile. CsvFile instances are designed
-// to be immutable.
+// CsvFile represents a mail merge CsvFile.
 type CsvFile struct {
 
 	// The headers
@@ -115,7 +114,9 @@ func (c *CsvFile) SelectEmails(emails EmailSet) *CsvFile {
 	f := func(row CsvRow) bool {
 		return emails.Contains(row.Email())
 	}
-	return c.sel(f)
+	result := *c
+	result.sel(f)
+	return &result
 }
 
 // SelectNoEmails returns a CsvFile like this instance that contains
@@ -124,7 +125,9 @@ func (c *CsvFile) SelectNoEmails(emails EmailSet) *CsvFile {
 	f := func(row CsvRow) bool {
 		return !emails.Contains(row.Email())
 	}
-	return c.sel(f)
+	result := *c
+	result.sel(f)
+	return &result
 }
 
 // SelectGoing returns a CsvFile like this instance that contains
@@ -133,7 +136,9 @@ func (c *CsvFile) SelectGoing() *CsvFile {
 	f := func(row CsvRow) bool {
 		return row.Going()
 	}
-	return c.sel(f)
+	result := *c
+	result.sel(f)
+	return &result
 }
 
 // AsEmailSet returns this instance as an EmailSet.
@@ -148,11 +153,10 @@ func (c *CsvFile) AsEmailSet() EmailSet {
 // WithNotGoing returns a CsvFile like this instance where every row has
 // going set to "n"
 func (c *CsvFile) WithNotGoing() *CsvFile {
-	result := make([]CsvRow, 0, len(c.Rows))
-	for _, row := range c.Rows {
-		result = append(result, row.WithNotGoing())
-	}
-	return &CsvFile{Headers: addGoingHeader(c.Headers), Rows: result}
+	result := *c
+	result.addGoingColumn()
+	result.setNotGoingInEachRow()
+	return &result
 }
 
 // Write writes this instance to a file.
@@ -165,14 +169,32 @@ func (c *CsvFile) Write(path string) error {
 	return c.write(f)
 }
 
-func (c *CsvFile) sel(f func(CsvRow) bool) *CsvFile {
+func (c *CsvFile) sel(f func(CsvRow) bool) {
 	var result []CsvRow
 	for _, row := range c.Rows {
 		if f(row) {
 			result = append(result, row)
 		}
 	}
-	return &CsvFile{Headers: c.Headers, Rows: result}
+	c.Rows = result
+}
+
+func (c *CsvFile) addGoingColumn() {
+	if slices.Contains(c.Headers, Going) {
+		return
+	}
+	result := make([]string, 0, len(c.Headers)+1)
+	result = append(result, c.Headers...)
+	result = append(result, Going)
+	c.Headers = result
+}
+
+func (c *CsvFile) setNotGoingInEachRow() {
+	result := make([]CsvRow, 0, len(c.Rows))
+	for _, row := range c.Rows {
+		result = append(result, row.WithNotGoing())
+	}
+	c.Rows = result
 }
 
 func (c *CsvFile) write(w io.Writer) error {
@@ -235,13 +257,4 @@ func createCsvRow(headers, row []string) CsvRow {
 		result[colName] = row[index]
 	}
 	return result
-}
-
-func addGoingHeader(headers []string) []string {
-	if slices.Contains(headers, Going) {
-		return headers
-	}
-	result := make([]string, 0, len(headers)+1)
-	result = append(result, headers...)
-	return append(result, Going)
 }

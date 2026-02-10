@@ -32,6 +32,9 @@ func TestWithNotGoing(t *testing.T) {
 	var builder strings.Builder
 	assert.NoError(t, csv.WithNotGoing().write(&builder))
 	assert.Equal(t, csvStrNoOneGoing, builder.String())
+	builder.Reset()
+	assert.NoError(t, csv.write(&builder))
+	assert.Equal(t, csvStr, builder.String())
 }
 
 func TestWithNotGoingNoColumn(t *testing.T) {
@@ -41,6 +44,9 @@ func TestWithNotGoingNoColumn(t *testing.T) {
 	var builder strings.Builder
 	assert.NoError(t, csv.WithNotGoing().write(&builder))
 	assert.Equal(t, csvStrNoOneGoing, builder.String())
+	builder.Reset()
+	assert.NoError(t, csv.write(&builder))
+	assert.Equal(t, csvStrNoGoingColumn, builder.String())
 }
 
 func TestSelectEmails(t *testing.T) {
@@ -55,6 +61,9 @@ alice@gmail.com,alice,no
 bob@gmail.com,bob,yes
 `
 	assert.Equal(t, expected, builder.String())
+	builder.Reset()
+	assert.NoError(t, csv.write(&builder))
+	assert.Equal(t, csvStr, builder.String())
 }
 
 func TestSelectNoEmails(t *testing.T) {
@@ -69,6 +78,9 @@ alice@gmail.com,alice,no
 charlie@gmail.com,charlie,yes
 `
 	assert.Equal(t, expected, builder.String())
+	builder.Reset()
+	assert.NoError(t, csv.write(&builder))
+	assert.Equal(t, csvStr, builder.String())
 }
 
 func TestSelectGoing(t *testing.T) {
@@ -82,6 +94,9 @@ bob@gmail.com,bob,yes
 charlie@gmail.com,charlie,yes
 `
 	assert.Equal(t, expected, builder.String())
+	builder.Reset()
+	assert.NoError(t, csv.write(&builder))
+	assert.Equal(t, csvStr, builder.String())
 }
 
 func TestSelectGoingNoGoingColumn(t *testing.T) {
@@ -96,6 +111,9 @@ bob@gmail.com,bob
 charlie@gmail.com,charlie
 `
 	assert.Equal(t, expected, builder.String())
+	builder.Reset()
+	assert.NoError(t, csv.write(&builder))
+	assert.Equal(t, csvStrNoGoingColumn, builder.String())
 }
 
 func TestIllegalRead(t *testing.T) {
@@ -127,4 +145,8 @@ func TestDifference(t *testing.T) {
 	rhs := NewEmailSet("alice@gmail.com,bob@gmail.com,echo@gmail.com")
 	diff := lhs.Difference(rhs)
 	assert.Equal(t, "charlie@gmail.com", diff.String())
+	assert.Equal(
+		t, "alice@gmail.com, bob@gmail.com, charlie@gmail.com", lhs.String())
+	assert.Equal(
+		t, "alice@gmail.com, bob@gmail.com, echo@gmail.com", rhs.String())
 }
